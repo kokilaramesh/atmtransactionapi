@@ -29,3 +29,24 @@ jobs:
         
     - name: Build with Maven
       run: mvn -B package --file pom.xml -s .maven/settings.xml -DskipTests
+      
+  deploy: #job name
+
+    runs-on: ubuntu-latest   # runners windos os/linux/ mac os /local 
+    env: 
+      PLATFORM_USERNAME: ${{secrets.PLATFORM_USERNAME}}
+      PLATFORM_PASSWORD: ${{secrets.PLATFORM_PASSWORD}}
+
+    steps:
+    - name: checkout code rep
+      uses: actions/checkout@v2 #available in  market place
+      
+    - name: Set up JDK 11
+      uses: actions/setup-java@v2
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+        cache: maven      # configuring jdk and cache
+        
+    - name: deploy to cloudhub
+      run: mvn -B package deploy -DmuleDeploy --file pom.xml -s .maven/settings.xml -DskipTests
