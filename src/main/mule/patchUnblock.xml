@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:email="http://www.mulesoft.org/schema/mule/email"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:validation="http://www.mulesoft.org/schema/mule/validation"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd 
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd 
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+
+	<flow name="patchunblock"
+		doc:id="a31d8682-90ae-4d5e-abba-fb0feb9b8b30">
+		<set-variable value="#[payload]" doc:name="Set Variable"
+			doc:id="f5a1752b-1054-4d21-aa1b-c7cd2cf72d80"
+			variableName="inputPatchPayload" />
+		<validation:matches-regex
+			doc:name="Matches regex"
+			doc:id="89946235-9414-4ae5-a2e5-c7f57baa6f58"
+			config-ref="Validation_Config" value="admin"
+			regex="#[payload.user]" message="invalid user" />
+		<validation:matches-regex doc:name="Matches regex" doc:id="922dc1a5-4157-496a-b0d3-d4eb9879eeb0" value="admin" regex="#[payload.password]"/>
+		<idempotent-message-validator
+			doc:name="Idempotent Message Validator"
+			doc:id="6fd52678-22bd-4050-bbd7-0670874dce75"
+			idExpression="#[payload.accountNumber ++ attributes.queryParams.bank]" />
+		<db:select doc:name="Select"
+			doc:id="85d522d6-45c5-472e-af68-e06eaa394971"
+			config-ref="Database_Config" target="unblockSelectInput">
+			<db:sql><![CDATA[select * from banktransaction where CustAccNum = :CustAccNum and bankName = :bank]]></db:sql>
+			<db:input-parameters><![CDATA[#[%dw 2.0
+output application/json
+---
+{
+  CustAccNum: vars.inputPatchPayload.accountNumber as String,
+  bank: attributes.queryParams.bank as String
+ }]]]></db:input-parameters>
+		</db:select>
+		<choice doc:name="Choice"
+			doc:id="33784f5a-5f95-448a-a15a-a819ffda418f">
+			<when expression="#[isEmpty(vars.unblockSelectInput)]">
+				<ee:transform doc:name="Transform Message"
+					doc:id="9b71ff24-ab07-4307-b550-71e7fec07b9e">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Account " ++ payload.accountNumber as String ++  " does not exist. Enter
+Valid Detail"
+
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<when
+				expression='#[vars.unblockSelectInput[0].wrongPin == 3 and vars.unblockSelectInput[0].accountStatus == "BLOCKED"]'>
+				<db:update doc:name="Update"
+					doc:id="20196d3c-079a-4541-83a1-236aa7ce1846"
+					config-ref="Database_Config">
+					<db:sql><![CDATA[update banktransaction SET accountStatus = 'ACTIVE' , wrongPin= 0  WHERE CustAccNum = :CustAccNum and bankNAme = :bank]]></db:sql>
+					<db:input-parameters><![CDATA[#[%dw 2.0
+import * from dw::util::Values
+output application/java
+---
+{
+	CustAccNum: vars.unblockSelectInput[0].CustAccNum as String,
+	bank: vars.unblockSelectInput.bankNAme[0] as String,
+}]]]></db:input-parameters>
+				</db:update>
+				<ee:transform doc:name="Transform Message"
+					doc:id="47126542-4a12-4abc-b7fa-64fc97ae4e71">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+
+	message: "Account " ++ vars.unblockSelectInput[0].CustAccNum as String ++ " is unblocked"
+	
+]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<email:send doc:name="Send"
+					doc:id="0736dbce-772d-4168-8460-cfdab34d61ee"
+					config-ref="Email_SMTP" subject="Account Unblocked">
+					<email:to-addresses>
+						<email:to-address
+							value="kokilavenugopal@gmail.com" />
+					</email:to-addresses>
+				</email:send>
+			</when>
+			<otherwise>
+				<ee:transform>
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  status: "Account " ++ vars.unblockSelectInput[0].CustAccNum as String ++ " is ACTIVE"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</mule>

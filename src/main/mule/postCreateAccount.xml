@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:s3="http://www.mulesoft.org/schema/mule/s3"
+	xmlns:email="http://www.mulesoft.org/schema/mule/email"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd
+http://www.mulesoft.org/schema/mule/s3 http://www.mulesoft.org/schema/mule/s3/current/mule-s3.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+	<flow name="postCreateAccountFlow"
+		doc:id="0fa217d2-680e-4125-b64c-919198497e90">
+		<set-variable value="#[payload]" doc:name="Set Variable"
+			doc:id="f6afbd73-640c-4d5f-8077-0c83a0e3618c" variableName="account" />
+		<try doc:name="Try" doc:id="36126178-7cba-47f9-b06b-a7e1aac3d4b5">
+			<idempotent-message-validator
+				doc:name="Idempotent Message Validator"
+				doc:id="e58132b8-03a4-4feb-a3e1-6bf6feaaa39b"
+				idExpression="#[payload.accountNumber ++ attributes.queryParams.bank]" />
+			<error-handler>
+				<on-error-propagate enableNotifications="true"
+					logException="true" doc:name="On Error Propagate"
+					doc:id="1106192d-3662-4a6c-806c-68d949794944">
+					<ee:transform doc:name="Transform Message"
+						doc:id="fa629e14-2ce1-4cf3-915d-29211cba9204">
+						<ee:message>
+							<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+
+{
+	message: "ACCOUNT " ++ vars.account.accountNumber as String ++ " already exist"
+}]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+				</on-error-propagate>
+			</error-handler>
+		</try>
+		<db:insert doc:name="Insert"
+			doc:id="ef393aad-7ed7-4622-b80d-43261a22a90c"
+			config-ref="Database_Config" target="insertValue">
+			<db:sql><![CDATA[insert into banktransaction (CustName, CustAccNum, atmPin, bankNAme, accountType, ifscCode, branchName, totalBalance, transactionTimeStamp,  mailId) VALUES ( CustName = :CustName, CustAccNum = :CustAccNum, atmPin = :atmPin, bankNAme = :bank, accountType = :accountType , ifscCode =  :ifscCode , branchName = :branchName, totalBalance = :totalBalance , transactionTimeStamp = :transactionTimeStamp, mailId= :mailId) ]]></db:sql>
+			<db:input-parameters><![CDATA[#[%dw 2.0		
+output application/java
+---
+ {
+  CustName: attributes.queryParams.customerName as String,
+  CustAccNum: payload.accountNumber as String,
+  atmPin: payload.atmPin as String,
+  bank: attributes.queryParams.bank as String,
+  accountType: attributes.queryParams.accountType as String,
+  ifscCode: payload.ifscCode as String,
+  branchName: attributes.queryParams.branchName as String,
+  transactionTimeStamp: now() as String,
+  totalBalance: payload.depositAmount as Number, 
+  mailId: payload.mailId as String
+  }]]]></db:input-parameters>
+		</db:insert>
+		<db:select doc:name="Select"
+			doc:id="69b2d2b2-01ad-447c-a4b8-93ef6bd6e513" target="accountSelect" config-ref="Database_Config">
+			<db:sql><![CDATA[select *from banktransaction where(CustAccNum = :CustAccNum and bankNAme = :bank)]]></db:sql>
+			<db:input-parameters><![CDATA[#[%dw 2.0
+output application/json
+---
+{
+	CustAccNum: vars.account.accountNumber as String,
+	bank: attributes.queryParams.bank as String
+}]]]></db:input-parameters>
+		</db:select>
+		<scatter-gather doc:name="Scatter-Gather"
+			doc:id="8805be42-8497-42ed-82fe-427ab080e88a">
+			<route>
+				<s3:create-object doc:name="Create object"
+					doc:id="d57beffc-3091-4d9b-be20-c7e82bfc9431"
+					config-ref="Amazon_S3_Configuration"
+					bucketName="kokilamuletraining"
+					key='#[payload.accountNumber ++ "_" ++  attributes.queryParams.customerName ++ ".json"]' >
+					<s3:object-content ><![CDATA[#[%dw 2.0
+output json
+---
+vars.accountSelect]]]></s3:object-content>
+				</s3:create-object>
+			</route>
+			<route>
+				<email:send doc:name="Send"
+					doc:id="aa99f4ff-e033-475f-9d9d-99961d1565d6"
+					config-ref="Email_SMTP"
+					subject=" Congratulations ! Account created">
+					<email:to-addresses>
+						<email:to-address
+							value="kokilavenugopal@gmail.com" />
+					</email:to-addresses>
+					<email:body>
+						<email:content><![CDATA[#[%dw 2.0
+output application/json
+---
+{
+message: "Congratulations ! Your account is created Successfully with Account
+Number "  ++ payload.accountNumber as String ++ "with" ++ attributes.queryParams.bank as String
+}]]]></email:content>
+					</email:body>
+				</email:send>
+			</route>
+			<route>
+				<ee:transform doc:name="Transform Message"
+					doc:id="c37d1602-1a4b-4847-b8fd-82715eec1eb9">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Account created" ++ payload.accountNumber as String
+	++ " Sucessfully"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</route>
+		</scatter-gather>
+		<ee:transform doc:name="Transform Message" doc:id="9c6edaf2-28d2-4552-b350-3b88dcd76e7c" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload."2".payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>

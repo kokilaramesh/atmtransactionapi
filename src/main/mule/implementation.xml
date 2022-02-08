@@ -1,0 +1,323 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:s3="http://www.mulesoft.org/schema/mule/s3"
+	xmlns:validation="http://www.mulesoft.org/schema/mule/validation"
+	xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns:tls="http://www.mulesoft.org/schema/mule/tls"
+	xmlns:email="http://www.mulesoft.org/schema/mule/email"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd
+http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd
+http://www.mulesoft.org/schema/mule/s3 http://www.mulesoft.org/schema/mule/s3/current/mule-s3.xsd">
+	<ee:object-store-caching-strategy
+		name="Caching_Strategy" doc:name="Caching Strategy"
+		doc:id="a85e8ab3-0447-4065-87d1-e99ee001ef21">
+		<os:private-object-store entryTtl="10"
+			expirationInterval="10" config-ref="ObjectStore_Config" />
+	</ee:object-store-caching-strategy>
+	<email:smtp-config name="Email_SMTP"
+		doc:name="Email SMTP" doc:id="887a0de8-f611-46ce-8813-2e40ec31dd22">
+		<email:smtp-connection host="smtp.gmail.com" port="587" user="kokilavenugopal@gmail.com" password="nnuwuwujunnxfjui" >
+			<email:properties >
+				<email:property key="mail.smtp.starttls.enable" value="true" />
+			</email:properties>
+		</email:smtp-connection>
+	</email:smtp-config>
+	<file:config name="File_Config" doc:name="File Config" doc:id="08888faf-6c1f-45f5-93a7-ce3bbb553fd3" >
+		<file:connection workingDir="C:\Users\kokil\OneDrive\Desktop\training mulesoft" />
+	</file:config>
+	<os:config name="ObjectStore_Config" doc:name="ObjectStore Config" doc:id="12978943-d31b-45f4-9735-2adda4f17b68" >
+		<os:connection />
+	</os:config>
+	<os:object-store name="Object_store" doc:name="Object store" doc:id="39e02520-586b-45b6-bf03-124ce96886e5" />
+	<validation:config name="Validation_Config" doc:name="Validation Config" doc:id="a64f24f5-8cec-4b9d-afb5-2b096f65a3bc" />
+	<s3:config name="Amazon_S3_Configuration" doc:name="Amazon S3 Configuration" doc:id="8907ab40-0faf-4b37-9987-c2253e3179c7" >
+		<s3:basic-connection accessKey="AKIA3UR7Z4ZZU4XWB7Y6" secretKey="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" region="US_EAST_2"/>
+	</s3:config>
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	<sub-flow name="ValidationFlow" doc:id="de13816f-db85-4bb9-b5af-853c4004e2bb" >
+		<set-variable value="#[vars.DataselectValues]" doc:name="Set Variable" doc:id="c5eaaa13-f51d-46f2-98a4-74fe28d9c875" variableName="FLowInput"/>
+		<db:select doc:name="Select" doc:id="620bcbd4-a954-458d-8e4f-1c844fb51a37" config-ref="Database_Config" target="DataSelectResult">
+			<db:sql><![CDATA[select * from banktransaction where (CustAccNum = :CustAccNum and bankNAme= :bank )]]></db:sql>
+			<db:input-parameters><![CDATA[#[%dw 2.0
+output application/java
+---
+{
+	CustAccNum: payload.accountNumber as Number,
+	bank: attributes.queryParams.bank as String
+	
+	}]]]></db:input-parameters>
+		</db:select>
+		<choice doc:name="Choice" doc:id="3d4cdb9f-4be6-46f6-b83d-38e28f51508b" >
+			<when expression='#[isEmpty(vars.DataSelectResult )]'>
+				<ee:transform doc:name="Transform Message" doc:id="7eba1999-6c98-436b-95ee-e84f16c4cdd8" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Account" ++ vars.DataSelectResult[0].accountNumber as String ++ " does not exist . Enter
+Valid Details"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<when expression='#[vars.DataSelectResult[0].accountStatus != "ACTIVE"]'>
+				<ee:transform doc:name="Transform Message" doc:id="9dab9a32-2fae-4068-85ea-8b2d2f9e2023" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Account" ++ vars.DataSelectResult[0].accountNumber as String
+	 ++
+	  " temporarily blocked. Please visit nearest Branch"
+	}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<when expression='#[vars.DataSelectResult[0].atmPin as String != vars.inputPayload.atmPin as String and vars.DataSelectResult[0].wrongPin as Number &lt;= 3]'>
+				<ee:transform doc:name="Transform Message" doc:id="61012532-ce18-4814-bee6-b7ac6ae08e63" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	UpdatedWrongPin: vars.DataSelectResult[0].wrongPin as Number + 1
+	
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<ee:transform doc:name="Transform Message" doc:id="dd7d1259-8cce-4635-9124-df928875e11e">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	LoginAttemptFailed: payload.UpdatedWrongPin as Number,
+	Attemptsleft : 3 as Number - payload.UpdatedWrongPin as Number
+	
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<db:update doc:name="Update" doc:id="f841d933-ed5d-4528-a7d5-204e4069cba3" config-ref="Database_Config">
+					<db:sql ><![CDATA[update banktransaction set wrongPin= :UpdatedWrongPin + 1  accountStatus = "BLOCKED" where (CustAccNum= :CustAcNum and bankNAme = :bank)]]></db:sql>
+					<db:input-parameters ><![CDATA[#[%dw 2.0
+output application/java
+---
+{
+ updatedWrongPin: vars.DataSelectResult[0].wrongPin as Number, 
+ CustAccNum: payload.accountNumber as String,
+ bank: attributes.queryParams.bank as String
+  }]]]></db:input-parameters>
+				</db:update>
+				<email:send doc:name="Send" doc:id="201a2167-124c-45de-af63-da83a39aef57" config-ref="Email_SMTP" subject="wrong pin">
+					<email:to-addresses >
+						<email:to-address value="kokilavenugopal@gmail.com" />
+						<email:to-address value="gopi21489@gmail.com" />
+					</email:to-addresses>
+					<email:body >
+						<email:content ><![CDATA[wrong pin]]></email:content>
+					</email:body>
+				</email:send>
+			</when>
+			<when expression="#[vars.DataSelectResult[0].wrongPin &gt;=3]">
+				<ee:transform doc:name="Transform Message" doc:id="aba8d131-5d27-4a61-919c-d7c5a0bf0828" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Maximum Attempts reached on  Your Account "  
+++
+ vars.DataSelectResult[0].CustAccNum as String ++ "is temporarily blocked. Please reach nearest Branch"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<db:update doc:name="Update" doc:id="32e851d7-6b56-4ef6-a297-f5fa22996ee4" config-ref="Database_Config">
+			<db:sql><![CDATA[update banktransaction set wrongPin = 0 and accountStatus == "BLOCKED"   where (CustAccNum = :CustAccNum and bankNAme = :bank); 
+]]></db:sql>
+		</db:update>
+			</when>
+			<when expression='#[vars.DataSelectResult[0].atmPin as String == payload.atmPin as String and vars.DataSelectResult[0].accountStatus == "ACTIVE"]'>
+				<set-variable value='#[vars.DataSelectResult[0].wrongPin as String == "0"]' doc:name="Set Variable" doc:id="0fd930ae-0cb6-4ffb-8d88-b23d60e93e44" variableName="wrongPin"/>
+			</when>
+		</choice>
+	</sub-flow>
+	
+	
+	
+	<!--  <?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:email="http://www.mulesoft.org/schema/mule/email"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd 
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+
+
+<flow name="postCreateAccount"
+		doc:id="d5852756-3891-49c0-a8b2-676ccbb56583">
+		<set-payload value="#[payload]" doc:name="Set Payload"
+			doc:id="1c82491b-db00-4b6d-910e-957fcdbf9706" />
+		<try doc:name="Try" doc:id="6e87bdbe-a927-46b6-b597-6a5694743e15">
+			<idempotent-message-validator
+				doc:name="Idempotent Message Validator"
+				doc:id="e8037fc7-7a80-4c43-9a59-5c507904df6f"
+				idExpression="#[attributes.queryParams.'bank' ++ payload.'accountNumber']" />
+			<error-handler>
+				<on-error-propagate enableNotifications="true"
+					logException="true" doc:name="On Error Propagate"
+					doc:id="a26c16e4-c894-412a-b825-a30c2247a19e">
+					<set-payload
+						value='#[%dw 2.0
+&#10;output application/json
+&#10;-&#45;&#45;
+&#10;message: "Duplicate ID: ID already Exists"]'
+						doc:name="Set Payload"
+						doc:id="976e9b7e-177b-4c54-96f8-3f9b1811b856" />
+				</on-error-propagate>
+			</error-handler>
+		</try>
+		<db:insert doc:name="Insert"
+			doc:id="d8aa66ce-e931-43fd-b15b-c664f76182b2"
+			config-ref="Database_Config" target="DataResult">
+			<db:sql><![CDATA[insert into banktransaction(CustName,CustAccNum,
+        atmPin,bankName,accountType,ifscCode,branchName,transactionTimeStamp,totalBalance,mailId) VALUES(:CustName,:CustAccNum,
+        :atmPin,:bankName,:accountType,:ifscCode,:branchName,:transactionTimeStamp,:totalBalance,:mailId)]]></db:sql>
+			<db:input-parameters><![CDATA[#[%dw 2.0		
+output application/java
+-&#45;&#45;
+ {
+  CustName: attributes.queryParams.customerName as String,
+  CustAccNum: payload.accountNumber as String,
+  atmPin: payload.atmPin as String,
+  bankName: attributes.queryParams.bank as String,
+  accountType: attributes.queryParams.accountType as String,
+  ifscCode: payload.ifscCode as String,
+  branchName: attributes.queryParams.branchName as String,
+  transactionTimeStamp: now() as String,
+  totalBalance: payload.depositAmount as Number, 
+  mailId: payload.mailId as String
+  }]]]></db:input-parameters>
+		</db:insert>
+		<scatter-gather doc:name="Scatter-Gather"
+			doc:id="57229935-b751-4c93-8799-dd76498355d2">
+			<route>
+				<s3:create-object doc:name="Create object"
+					doc:id="5b162085-7fcb-4602-aafd-ed2452e0f1b1"
+					config-ref="Amazon_S3_Configuration"
+					bucketName="kokilamuletraining"
+					key='#[payload.accountNumber as String ++ "_" ++ attributes.queryParams.customerName as String ++ ".json"]'>
+					<s3:object-content><![CDATA[#[%dw 2.0		
+output application/json
+-&#45;&#45;
+ {
+  CustName: attributes.queryParams.customerName as String,
+  CustAccNum: payload.accountNumber as String,
+  atmPin: payload.atmPin as String,
+  bankName: attributes.queryParams.bank as String,
+  accountType: attributes.queryParams.accountType as String,
+  ifscCode: payload.ifscCode as String,
+  branchName: attributes.queryParams.branchName as String,
+  transactionTimeStamp: now() as String,
+  totalBalance: payload.depositAmount as Number, 
+  mailId: payload.mailId as String
+  }]]]></s3:object-content>
+				</s3:create-object>
+			</route>
+			<route>
+				<ee:transform>
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+-&#45;&#45;
+
+  message: "Account created " ++ payload.accountNumber as String default "" ++  " Successfully"
+]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</route>
+			<route>
+				<email:send doc:name="Send"
+					doc:id="76e1135c-09a1-4f6d-be34-6a837a33c059"
+					config-ref="Email_SMTP" subject="Congratulations ! Account created">
+					<email:to-addresses>
+						<email:to-address
+							value="kokilavenugopalsamy@gmail.com" />
+						<email:to-address value="gopi21489@gmail.com" />
+					</email:to-addresses>
+					<email:body>
+						<email:content><![CDATA[#[%dw 2.0
+output application/json
+-&#45;&#45;
+{
+  message: "Congratulations  Your account is created Successfully with Account
+  Number" ++ payload.accountNumber as String  ++ "with" ++ attributes.queryParams.bank as String   ++ " Bank"
+  
+  }]]]></email:content>
+					</email:body>
+				</email:send>
+			</route>
+		</scatter-gather>
+	</flow>
+
+
+</mule> -->
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+
+
+
+
+
+
+
+
+
+
+
+</mule> 

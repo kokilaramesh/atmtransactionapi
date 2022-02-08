@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:email="http://www.mulesoft.org/schema/mule/email"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd 
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+	<flow name="postWithDraw"
+		doc:id="74090006-981a-4a27-b930-05b53aa15c3d">
+		<set-variable value="#[payload]" doc:name="Set Variable"
+			doc:id="78e3ac29-e8e0-4de6-bff6-a6229ccdd679"
+			variableName="inputPayload" />
+		<flow-ref doc:name="Flow Reference"
+			doc:id="15947233-7b2b-47af-a213-b0d716f471a2" name="ValidationFlow"
+			target="DataselectValues" />
+		<db:select doc:name="Select"
+			doc:id="5b3208a1-56c8-4db0-aa27-ff0149fb78d9"
+			config-ref="Database_Config" target="WithdrawDBResult">
+			<db:sql><![CDATA[select * from banktransaction where (CustAccNum = :CustAccNum and bankNAme = :bank)]]></db:sql>
+			<db:input-parameters><![CDATA[#[%dw 2.0
+output application/java
+---
+{
+	CustAccNum: payload.accountNumber as Number,
+	bank: attributes.queryParams.bank as String
+	}]]]></db:input-parameters>
+		</db:select>
+		<choice doc:name="Choice"
+			doc:id="63a4e598-e52b-44bf-b31b-2759a8631935">
+			<when
+				expression="#[vars.WithdrawDBResult[0].totalBalance as Number &lt; vars.inputPayload.amountToBeWithdrawn as Number]">
+				<ee:transform doc:name="Transform Message"
+					doc:id="42112e22-2274-40e4-895f-b6f841131fb6">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+message: "INSUFFIECIENT FUNDS"]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<when
+				expression="#[vars.inputPayload.atmPin as String != vars.WithdrawDBResult[0].atmPin as String]">
+				<ee:transform doc:name="Transform Message"
+					doc:id="3027fabf-6056-416d-997c-99039a22b612">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+{
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise>
+				<ee:transform doc:name="Transform Message"
+					doc:id="86f678f8-68b3-43cb-95c3-5fbcc0f7a76f">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	totalBalance: vars.WithdrawDBResult[0].totalBalance as Number - vars.inputPayload.amountToBeWithdrawn as Number
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<db:update doc:name="Update"
+					doc:id="4a3a77b4-9c93-4204-ad05-41edc8cc21e9"
+					config-ref="Database_Config">
+					<db:sql><![CDATA[update banktransaction set totalBalance = :UpdatedTotalBalance where (CustAccNum= :CustAccNum and bankNAme= :bank)]]></db:sql>
+					<db:input-parameters><![CDATA[#[%dw 2.0
+output application/json
+---
+{
+	UpdatedTotalBalance: payload.totalBalance as Number,
+	CustAccNum: vars.inputPayload.accountNumber as Number,
+	bank: attributes.queryParams.bank as String
+	
+}]]]></db:input-parameters>
+				</db:update>
+				<ee:transform>
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  status: "Amount  "++ vars.inputPayload.amountToBeWithdrawn as Number ++ "is debited your account balance is" ++ vars.WithdrawDBResult[0].totalBalance as Number
+  }]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<email:send doc:name="Send"
+					doc:id="bf0c49e4-1246-4ff1-ad96-a988a040ddb1"
+					config-ref="Email_SMTP" subject="Transaction Alert!">
+					<email:to-addresses>
+						<email:to-address
+							value="kokilavenugopal@gmail.com" />
+					</email:to-addresses>
+					<email:body>
+						<email:content><![CDATA[#[%dw 2.0
+output application/json
+---
+{
+	message: "This is to inform you that Your Account has been debited with xxxx
+    amount and your Total Balance is " ++ vars.WithdrawDBResult[0].totalBalance as String
+}]]]></email:content>
+					</email:body>
+				</email:send>
+			</otherwise>
+		</choice>
+	</flow>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</mule>

@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:email="http://www.mulesoft.org/schema/mule/email"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd 
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/cor/current/mule.xsd">
+	
+	<flow name="postCheckBalance" doc:id="3d6bd351-4ed9-4831-b8c5-e4352fc1e511" >
+		<set-variable value="#[payload.atmPin as String]" doc:name="Set Variable" doc:id="d787062f-8af0-4560-aafa-25ac5ac82602" variableName="atmPin"/>
+		<db:select doc:name="Select" doc:id="0fc74414-43dc-424d-a3c6-c04cd333f4d5" config-ref="Database_Config" target="DataSelectResult">
+			<db:sql><![CDATA[select * from banktransaction where CustAccNum = :CustAccNum and bankNAme = :bank]]></db:sql>
+			<db:input-parameters><![CDATA[#[%dw 2.0
+output application/java
+---
+{
+ CustAccNum: payload.accountNumber as String,
+ bank: attributes.queryParams.bank as String
+ 
+ }]]]></db:input-parameters>
+		</db:select>
+		<choice doc:name="Choice" doc:id="23789efe-569b-4d44-ab52-445679b99aef" >
+			<when expression='#[isEmpty(vars.DataSelectResult )]'>
+				<ee:transform doc:name="Transform Message" doc:id="9affa1fa-b413-4aab-b6bf-96e5e9eb3f7e">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Account " ++ payload.accountNumber ++  "does not exist . Enter Valid Details"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<when expression='#[vars.DataSelectResult[0].accountStatus != "ACTIVE"]'>
+				<ee:transform doc:name="Transform Message" doc:id="259c41b3-f128-4861-8d85-45c21b53ea2f" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"message" :  "Account " ++ payload.accountNumber as String  ++ " temporarily blocked. Please visit nearest Branch "
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<when expression="#[vars.DataSelectResult[0].atmPin as String != vars.atmPin as String and vars.DataSelectResult[0].wrongPin as Number &lt; 3]">
+				<db:update doc:name="Update" doc:id="2c1b3234-ea4a-4b35-9b87-69bc6f58c8c9" config-ref="Database_Config">
+					<db:sql><![CDATA[update banktransaction set wrongPin = :updatedWrongPin  + 1 where CustAccNum = :CustAccNum and bankNAme = :bank ]]></db:sql>
+					<db:input-parameters><![CDATA[#[%dw 2.0
+output application/java
+---
+{
+ updatedWrongPin: vars.DataSelectResult[0].wrongPin as Number, 
+ CustAccNum: payload.accountNumber as String,
+ bank: attributes.queryParams.bank as String
+ }]]]></db:input-parameters>
+				</db:update>
+				<ee:transform doc:name="Transform Message" doc:id="c3a21be1-605e-4989-9e97-187ab7fb91aa">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	LoginAttemptFailed: vars.DataSelectResult[0].wrongPin as Number,
+	Attemptsleft : 3 as Number - vars.DataSelectResult[0].wrongPin as Number
+	
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<choice doc:name="Choice" doc:id="e221ce6d-e12c-4cb2-bc58-460651e53dde">
+					<when expression="#[vars.DataSelectResult[0].wrongPin + 1 == 3]">
+						<db:update doc:name="Update" doc:id="e4da506a-b35b-4bf5-bc02-d7b9110a1ff2" config-ref="Database_Config">
+					<db:sql><![CDATA[update banktransaction set  accountStatus = 'BLOCKED' where CustAccNum = :CustAccNum and bankNAme = :bank ]]></db:sql>
+					<db:input-parameters><![CDATA[#[%dw 2.0
+output application/java
+---
+{
+ CustAccNum: payload.accountNumber as String,
+ bank: attributes.queryParams.bank as String
+ }]]]></db:input-parameters>
+				</db:update>
+						<ee:transform doc:name="Transform Message" doc:id="5cf87353-acf3-412b-9b62-9c86c2048707">
+							<ee:message>
+								<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	 message: "Maximum Attempts reached.
+     Your Account " ++ payload.accountNumber as String ++
+ "  is temporarily blocked. Please reach nearest Branch"
+ }]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<email:send doc:name="Send" doc:id="13633d88-e348-4534-b70f-c97e9482042d" config-ref="Email_SMTP" subject="Account Blocked !" fromAddress="kokilavenugopal@gmail.com">
+					<email:to-addresses>
+						<email:to-address value="kokilavenugopal@gmail.com" />
+						<email:to-address value="gopi21489@gmail.com" />
+					</email:to-addresses>
+					<email:body>
+						<email:content><![CDATA[#["This is to inform you that Your Account has been blocked due to 3 failed attempts. Please reach out nearest branch to unblock"]]]></email:content>
+					</email:body>
+				</email:send>
+					</when>
+					<otherwise >
+						<email:send doc:name="Send" doc:id="bc5f204a-cbc3-4c3e-9863-d035283689e7" config-ref="Email_SMTP" subject="Account Blocked !">
+					<email:to-addresses>
+						<email:to-address value="kokilavenugopal@gmail.com" />
+						<email:to-address value="gopi21489@gmail.com" />
+					</email:to-addresses>
+				</email:send>
+					</otherwise>
+				</choice>
+			</when>
+			<when expression="#[vars.DataSelectResult[0] .wrongPin &gt;=3]">
+				<ee:transform doc:name="Transform Message" doc:id="c79c6259-126e-4cdc-bf08-6ecbe6751b1c" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	 message: "Maximum Attempts reached.
+     Your Account " ++ payload.accountNumber as String ++
+ "  is temporarily blocked. Please reach nearest Branch"
+ }]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="4302583e-9a70-4d34-9a85-71697c5b1c54" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	TotalBalance: vars.DataSelectResult[0].totalBalance
+}
+]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	
+	
+	
+	
+	
+	
+	
+	</mule>

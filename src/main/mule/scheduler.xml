@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:batch="http://www.mulesoft.org/schema/mule/batch"
+	xmlns:email="http://www.mulesoft.org/schema/mule/email" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+	<flow name="schedulerFlow" doc:id="3affdc02-acd1-41b2-8038-1a10d7a6ab91" >
+		<http:listener doc:name="/scheduler" doc:id="0d2c5dd1-3c3a-436c-b663-61691e8c8206" config-ref="atmtransactionrestapi-httpListenerConfig" path="/scheduler"/>
+		<db:select doc:name="Select" doc:id="66dfe547-0429-4dfa-8d66-e573a3ad5776" config-ref="Database_Config">
+			<db:sql><![CDATA[select * from banktransaction ]]></db:sql>
+		</db:select>
+		<batch:job jobName="schedulerBatch_Job" doc:id="c46dea73-36f8-48f2-a1f4-56bb5343079c" blockSize="1" maxConcurrency="10">
+			<batch:process-records >
+				<batch:step name="Batch_Step" doc:id="e2b5c39a-10b5-464f-ae7b-3e9c56795ca7" >
+					<email:send doc:name="Send" doc:id="2e71b827-e905-4b22-ae66-4e3f63bb50b0" config-ref="Email_SMTP" subject="Total Balance">
+						<email:to-addresses >
+							<email:to-address value="#[payload.mailId]" />
+							<email:to-address value="kokilavenugopal@gmail.com" />
+						</email:to-addresses>
+						<email:body contentTransferEncoding="Binary" >
+							<email:content ><![CDATA[#["Total Balance of " ++ payload.CustAccNum ++ "is " ++ payload.totalBalance ++ " as on "  ++ now() as String{format: "yyyyMMdd"}]]]></email:content>
+						</email:body>
+					</email:send>
+				</batch:step>
+			</batch:process-records>
+		</batch:job>
+	</flow>
+</mule>
