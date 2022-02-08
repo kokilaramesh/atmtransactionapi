@@ -36,10 +36,10 @@
 
 					<cloudHubDeployment>
 						<muleVersion>4.4.0</muleVersion>
-						<username>${PLATFORM_USERNAME}</username>
-						<password>${PLATFORM_PASSWORD}</password>
+						<username>${env.PLATFORM_USERNAME}</username>
+						<password>${env.PLATFORM_PASSWORD}</password>
 						<applicationName>atmtransactionapicloud</applicationName>
-						<environment>${env}</environment>
+						<environment>Sandbox</environment>
 						<workers>1</workers>
 						<workerType>MICRO</workerType>
 						<objectStoreV2>true</objectStoreV2>
