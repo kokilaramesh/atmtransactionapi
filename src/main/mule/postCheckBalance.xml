@@ -11,7 +11,7 @@ http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/cu
 http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/cor/current/mule.xsd">
 	
 	<flow name="postCheckBalance" doc:id="3d6bd351-4ed9-4831-b8c5-e4352fc1e511" >
-		<set-variable value="#[payload.atmPin as String]" doc:name="Set Variable" doc:id="d787062f-8af0-4560-aafa-25ac5ac82602" variableName="atmPin"/>
+		<set-variable value="#[payload.atmPin as String]" doc:name="Set Variable" doc:id="6622b633-6b00-4b5c-8dd9-b9b5e4f62e42" variableName="pinvalue"/>
 		<db:select doc:name="Select" doc:id="0fc74414-43dc-424d-a3c6-c04cd333f4d5" config-ref="Database_Config" target="DataSelectResult">
 			<db:sql><![CDATA[select * from banktransaction where CustAccNum = :CustAccNum and bankNAme = :bank]]></db:sql>
 			<db:input-parameters><![CDATA[#[%dw 2.0
@@ -48,7 +48,7 @@ output application/json
 					</ee:message>
 				</ee:transform>
 			</when>
-			<when expression="#[vars.DataSelectResult[0].atmPin as String != vars.atmPin as String and vars.DataSelectResult[0].wrongPin as Number &lt; 3]">
+			<when expression="#[vars.DataSelectResult[0].atmPin as String != vars.pinvalue as String and vars.DataSelectResult[0].wrongPin as Number &lt; 3]">
 				<db:update doc:name="Update" doc:id="2c1b3234-ea4a-4b35-9b87-69bc6f58c8c9" config-ref="Database_Config">
 					<db:sql><![CDATA[update banktransaction set wrongPin = :updatedWrongPin  + 1 where CustAccNum = :CustAccNum and bankNAme = :bank ]]></db:sql>
 					<db:input-parameters><![CDATA[#[%dw 2.0
