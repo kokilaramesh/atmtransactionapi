@@ -49,4 +49,4 @@ jobs:
         cache: maven      # configuring jdk and cache
         
     - name: deploy to cloudhub
-      run: mvn -B package deploy -DmuleDeploy --file pom.xml -s .maven/settings.xml -DskipTests
+      run: mvn -B package deploy -DmuleDeploy --file pom.xml -s .maven/settings.xml -DskipTests -Denv=${{secrets.env}}  -Dkey=${{secrets.key}}
