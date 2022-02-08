@@ -20,11 +20,6 @@ http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/sc
 		api="resource::acb3dea9-334c-4818-8702-fc5741605682:atmtransactionrestapi:1.0.1:raml:zip:atmtransactionrestapi.raml"
 		outboundHeadersMapName="outboundHeaders"
 		httpStatusVarName="httpStatus" />
-			<global-property doc:name="Global Property"
-		doc:id="b81bce81-498b-421f-843a-c5e2d3840662" name="env" value="dev" />
-	<global-property doc:name="Global Property"
-		doc:id="8f02827f-a285-4617-98d8-b47894f65eb7" name="key"
-		value="mulesoft" />
 
 	<db:config name="Database_Config" doc:name="Database Config"
 		doc:id="3985aef8-f89f-4fba-a369-1b7c0098cdd4">

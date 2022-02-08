@@ -46,7 +46,8 @@
 						<region>us-east-2</region>
 						<properties>
 							<http.port>8081</http.port>
-							<mule.env>${env}</mule.env>
+							<env>${env}</env>
+							<key>${key}</key>
 						</properties>
 					</cloudHubDeployment>
 

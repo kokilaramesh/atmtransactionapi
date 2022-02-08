@@ -72,9 +72,9 @@ output application/json
 }]]></ee:set-payload>
 					</ee:message>
 				</ee:transform>
-				<choice doc:name="Choice" doc:id="e221ce6d-e12c-4cb2-bc58-460651e53dde">
-					<when expression="#[vars.DataSelectResult[0].wrongPin + 1 == 3]">
-						<db:update doc:name="Update" doc:id="e4da506a-b35b-4bf5-bc02-d7b9110a1ff2" config-ref="Database_Config">
+			</when>
+			<when expression="#[vars.DataSelectResult[0] .wrongPin &gt;=3]">
+				<db:update doc:name="Update" doc:id="e4da506a-b35b-4bf5-bc02-d7b9110a1ff2" config-ref="Database_Config">
 					<db:sql><![CDATA[update banktransaction set  accountStatus = 'BLOCKED' where CustAccNum = :CustAccNum and bankNAme = :bank ]]></db:sql>
 					<db:input-parameters><![CDATA[#[%dw 2.0
 output application/java
@@ -84,19 +84,19 @@ output application/java
  bank: attributes.queryParams.bank as String
  }]]]></db:input-parameters>
 				</db:update>
-						<ee:transform doc:name="Transform Message" doc:id="5cf87353-acf3-412b-9b62-9c86c2048707">
-							<ee:message>
-								<ee:set-payload><![CDATA[%dw 2.0
+				<ee:transform doc:name="Transform Message" doc:id="c79c6259-126e-4cdc-bf08-6ecbe6751b1c" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
 output application/json
 ---
 {
 	 message: "Maximum Attempts reached.
-     Your Account " ++ payload.accountNumber as String ++
+     Your Account " ++ vars.DataSelectResult[0].CustAccNum as String ++
  "  is temporarily blocked. Please reach nearest Branch"
  }]]></ee:set-payload>
-							</ee:message>
-						</ee:transform>
-						<email:send doc:name="Send" doc:id="13633d88-e348-4534-b70f-c97e9482042d" config-ref="Email_SMTP" subject="Account Blocked !" fromAddress="kokilavenugopal@gmail.com">
+					</ee:message>
+				</ee:transform>
+				<email:send doc:name="Send" doc:id="13633d88-e348-4534-b70f-c97e9482042d" config-ref="Email_SMTP" subject="Account Blocked !" fromAddress="kokilavenugopal@gmail.com">
 					<email:to-addresses>
 						<email:to-address value="kokilavenugopal@gmail.com" />
 						<email:to-address value="gopi21489@gmail.com" />
@@ -105,31 +105,8 @@ output application/json
 						<email:content><![CDATA[#["This is to inform you that Your Account has been blocked due to 3 failed attempts. Please reach out nearest branch to unblock"]]]></email:content>
 					</email:body>
 				</email:send>
-					</when>
-					<otherwise >
-						<email:send doc:name="Send" doc:id="bc5f204a-cbc3-4c3e-9863-d035283689e7" config-ref="Email_SMTP" subject="Account Blocked !">
-					<email:to-addresses>
-						<email:to-address value="kokilavenugopal@gmail.com" />
-						<email:to-address value="gopi21489@gmail.com" />
-					</email:to-addresses>
-				</email:send>
-					</otherwise>
-				</choice>
-			</when>
-			<when expression="#[vars.DataSelectResult[0] .wrongPin &gt;=3]">
-				<ee:transform doc:name="Transform Message" doc:id="c79c6259-126e-4cdc-bf08-6ecbe6751b1c" >
-					<ee:message >
-						<ee:set-payload ><![CDATA[%dw 2.0
-output application/json
----
-{
-	 message: "Maximum Attempts reached.
-     Your Account " ++ payload.accountNumber as String ++
- "  is temporarily blocked. Please reach nearest Branch"
- }]]></ee:set-payload>
-					</ee:message>
-				</ee:transform>
-			</when>
+			
+</when>
 			<otherwise >
 				<ee:transform doc:name="Transform Message" doc:id="4302583e-9a70-4d34-9a85-71697c5b1c54" >
 					<ee:message >
