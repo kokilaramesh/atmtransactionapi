@@ -12,6 +12,9 @@ jobs:
   build: #job name
 
     runs-on: ubuntu-latest   # runners windos os/linux/ mac os /local 
+    env: 
+      PLATFORM_USERNAME: ${{secrets.PLATFORM_USERNAME}}
+      PLATFORM_PASSWORD: ${{secrets.PLATFORM_PASSWORD}}
 
     steps:
     - name: checkout code rep
