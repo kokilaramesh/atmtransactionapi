@@ -38,7 +38,7 @@
 						<muleVersion>4.4.0</muleVersion>
 						<username>${env.PLATFORM_USERNAME}</username>
 						<password>${env.PLATFORM_PASSWORD}</password>
-						<applicationName>atmtransactionapicloud</applicationName>
+						<applicationName>atmtransactionapicloud-basicendpoint</applicationName>
 						<environment>Sandbox</environment>
 						<workers>1</workers>
 						<workerType>MICRO</workerType>
